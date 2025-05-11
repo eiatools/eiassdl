@@ -9,22 +9,20 @@
   <style>
     :root{
       --sidebar-width:180px;
-      /* Dark */
-      --bg-dark:#2c2c2c;--text-dark:#fff;--header-dark:#1e1e1e;--accent-dark:#00ff85;
-      /* Light */
-      --bg-light:#f5f5f5;--text-light:#000;--header-light:#fff;--accent-light:#007aff;
+      --bg-dark:#2c2c2c; --text-dark:#fff; --header-dark:#1e1e1e; --accent-dark:#00ff85;
+      --bg-light:#f5f5f5; --text-light:#000; --header-light:#fff; --accent-light:#007aff;
     }
     *{box-sizing:border-box;margin:0;padding:0;font-family:"NanumGothic",sans-serif;-webkit-tap-highlight-color:transparent}
     html,body{height:100%;overflow:hidden}
     body.dark{background:var(--bg-dark);color:var(--text-dark)}
     body.light{background:var(--bg-light);color:var(--text-light)}
     header{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;user-select:none}
-    header.dark{background:var(--header-dark)}header.light{background:var(--header-light)}
+    header.dark{background:var(--header-dark)} header.light{background:var(--header-light)}
     header h1{font-size:18px;font-weight:700}
     .win-btn{border:none;background:none;font-size:20px;cursor:pointer;color:inherit}
     #app{display:flex;height:calc(100% - 48px)}
     nav{width:var(--sidebar-width);overflow-y:auto;display:flex;flex-direction:column}
-    nav.dark{background:#333}nav.light{background:#fff;border-right:1px solid #ddd}
+    nav.dark{background:#333} nav.light{background:#fff;border-right:1px solid #ddd}
     nav button{width:100%;border:none;padding:12px 10px;text-align:left;background:transparent;color:inherit;font-weight:600;cursor:pointer;transition:background .15s,filter .15s}
     nav button.active,nav button:hover{background:rgba(255,255,255,.1);filter:brightness(1.2)}
     #content{flex:1;position:relative;overflow:hidden}
@@ -56,7 +54,8 @@
 <script>
 /*************** CONFIG ****************/
 const EIASS_FILE_URL = "https://www.eiass.go.kr/common/file/downloadPdfByFileSeq.do";
-const PROXY = url => `/proxy?url=${encodeURIComponent(url)}`; // server.js 프록시 필요
+// Vercel Serverless Function 경로 (/api/proxy)
+const PROXY = url => `/api/proxy?url=${encodeURIComponent(url)}`;
 const PAGES={
   "홈":"home",
   "전체목록":"https://eiass.go.kr/biz/base/info/searchListNew.do?menu=biz&biz_gubn=",
@@ -73,12 +72,12 @@ const PAGES={
 /*************** STATE & UTILS *********/
 const STATE={current:null,list:[],theme:"dark"};
 const $=(s,e=document)=>e.querySelector(s);
-const create=(t,a={},...c)=>{const el=document.createElement(t);for(const[k,v]of Object.entries(a)){if(k.startsWith("on")&&typeof v=="function")el.addEventListener(k.slice(2),v);else if(k==="class")el.className=v;else el.setAttribute(k,v);}c.flat().forEach(x=>el.append(x));return el};
+const create=(t,a={},...c)=>{const el=document.createElement(t);for(const[k,v]of Object.entries(a)){if(k.startsWith("on")&&typeof v=="function")el.addEventListener(k.slice(2),v);else if(k=="class")el.className=v;else el.setAttribute(k,v);}c.flat().forEach(x=>el.append(x));return el};
 /*************** THEME *****************/
 const themeBtn=$("#themeBtn");
 function applyTheme(){document.body.className=STATE.theme;themeBtn.textContent=STATE.theme==="dark"?"🌞":"🌓";$("header").className=STATE.theme;$("nav").className=STATE.theme;}
 function toggleTheme(){STATE.theme=STATE.theme==="dark"?"light":"dark";applyTheme();gsap.fromTo("body",{opacity:0},{opacity:1,duration:.35});}
-themeBtn.addEventListener("click",toggleTheme);applyTheme();
+applyTheme();themeBtn.addEventListener("click",toggleTheme);
 /*************** SIDEBAR ***************/
 const sidebar=$("#sidebar");Object.keys(PAGES).forEach(n=>sidebar.append(create("button",{onclick:()=>showPanel(n)},n)));
 function setActive(n){[...sidebar.children].forEach(b=>b.classList.toggle("active",b.textContent===n));}
@@ -92,16 +91,4 @@ panel.innerHTML=`<div class="form-row"><label>저장 폴더</label><input type="
 const tbody=$("#fileTable tbody",panel);
 $("#addSeqBtn",panel).onclick=addSeq;$("#addRangeBtn",panel).onclick=addRange;$("#delSelBtn",panel).onclick=delSel;$("#delAllBtn",panel).onclick=()=>{if(confirm("전체 삭제?")){STATE.list=[];draw();}};$("#startDlBtn",panel).onclick=startDownload;
 function draw(){tbody.innerHTML="";STATE.list.forEach((f,i)=>{const tr=create("tr",{"data-i":i});tr.append(create("td",{},i+1));tr.append(create("td",{},f.seq));tr.append(create("td",{},f.title||"(제목 조회 중)"));tr.append(create("td",{},f.status||"대기"));tr.onclick=()=>tr.classList.toggle("sel");tbody.append(tr);});}
-function addSeq(){const seq=$("#seqInput",panel).value.trim();if(!/^\d{7}$/.test(seq))return alert("7자리 숫자를 입력하세요");if(STATE.list.some(f=>f.seq===seq))return alert("이미 목록에 있습니다");STATE.list.push({seq,title:"",status:"대기"});getTitle(seq);draw();}
-function addRange(){const s=$("#startSeq",panel).value.trim();const e=$("#endSeq",panel).value.trim();if(!/^\d{7}$/.test(s)||!/^\d{7}$/.test(e))return alert("숫자 7자리!");let [st,en]=[+s,+e];if(st>en)[st,en]=[en,st];let cnt=0;for(let n=st;n<=en;n++){const seq=n.toString().padStart(7,"0");if(STATE.list.some(f=>f.seq===seq))continue;STATE.list.push({seq,title:"",status:"대기"});getTitle(seq);cnt++;}if(!cnt)alert("새로 추가된 번호가 없습니다");draw();}
-function delSel(){const idx=[...tbody.querySelectorAll("tr.sel")].map(tr=>+tr.dataset.i);STATE.list=STATE.list.filter((_,i)=>!idx.includes(i));draw();}
-async function getTitle(seq){try{const res=await fetch(PROXY(`${EIASS_FILE_URL}?FILE_SEQ=${seq}`),{method:"HEAD"});if(!res.ok)throw new Error(res.status);const cd=res.headers.get("content-disposition")||"";let title="파일명 없음";if(cd.includes("filename=")){title=decodeURIComponent(cd.split("filename=")[1].replace(/\"/g,"").replace(/\.pdf/i,""));}const obj=STATE.list.find(f=>f.seq===seq);if(obj){obj.title=title;draw();}}catch(e){console.error(e);const obj=STATE.list.find(f=>f.seq===seq);if(obj){obj.title="(제목 실패)";draw();}}}
-async function startDownload(){if(!STATE.list.length)return alert("목록이 비어있습니다");const todos=STATE.list.filter(f=>f.status!=="완료");if(!todos.length)return alert("모든 항목이 완료되었습니다");const bar=$("#globalBar",panel);let completed=0;const update=()=>bar.style.width=(++completed/todos.length*100)+"%";
-const concurrency=3;let index=0;const next=()=>{if(index>=todos.length)return;const f=todos[index++];downloadOne(f).finally(()=>{update();next();});};for(let i=0;i<concurrency;i++)next();}
-async function downloadOne(f){f.status="진행중";draw();try{const res=await fetch(PROXY(`${EIASS_FILE_URL}?FILE_SEQ=${f.seq}`));if(!res.ok)throw new Error(res.status);const blob=await res.blob();let name=f.title||`${f.seq}.pdf`;if(!name.endsWith(".pdf"))name+=".pdf";saveAs(blob,name);f.status="완료";}catch(e){console.error(e);f.status="실패";}draw();}
-}
-/*************** INIT *****************/
-showPanel("홈");
-</script>
-</body>
-</html>
+function addSeq(){const seq=$("#seqInput",panel).value.trim();if(!/^\d{7}$/.test(seq))return alert("7자리 숫자를 입력하세요");if(STATE.list.some
