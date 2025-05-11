@@ -9,189 +9,174 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <style>
 :root{
-  --bg:#272727;--fg:#e6e6e6;--accent:#0095ff;--panel:#1e1e1e;
-  --sidebar:150px;--h:40px;
+ --bg:#272727;--fg:#e6e6e6;--accent:#0095ff;--panel:#1e1e1e;
+ --sidebar:150px;--h:44px;
 }
 *{box-sizing:border-box;margin:0;padding:0;font-family:"Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans KR",sans-serif}
 body{background:var(--bg);color:var(--fg);display:flex;height:100vh;overflow:hidden}
-header{position:fixed;top:0;left:0;right:0;height:var(--h);background:#111;padding:0 8px;display:flex;align-items:center;font-weight:700;font-size:14px;z-index:3}
+header{position:fixed;top:0;left:0;right:0;height:var(--h);background:#111;padding:0 12px;display:flex;align-items:center;font-weight:700;font-size:15px;z-index:3}
 aside{width:var(--sidebar);background:#1b1b1b;padding-top:var(--h);position:fixed;left:0;top:0;bottom:0;overflow-y:auto}
-aside button{display:block;width:100%;border:none;background:none;color:var(--fg);text-align:left;padding:10px 12px;font-size:13px;cursor:pointer;transition:.15s}
+aside button{display:block;width:100%;border:none;background:none;color:var(--fg);text-align:left;padding:10px 14px 10px 16px;font-size:14px;cursor:pointer;transition:.15s}
 aside button:hover{background:#2d2d2d}
 aside button.active{background:var(--accent);color:#fff;font-weight:700}
 #content{flex:1;margin-left:var(--sidebar);padding-top:var(--h);overflow:hidden;position:relative}
-.panel{position:absolute;inset:0;padding:14px;display:none}
+.panel{position:absolute;inset:0;padding:16px;display:none}
 .panel.active{display:block}
-#downloadTbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+iframe{width:100%;height:100%;border:0}
+#downloadTbl{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px}
 #downloadTbl th,#downloadTbl td{border:1px solid #444;padding:6px 8px;text-align:center}
 #downloadTbl th{background:#333}
 .status-wait{color:#999}
 .status-down{color:var(--accent)}
-.status-ok{color:#49c447}
+.status-ok{color:#43c65e}
 .status-fail{color:#ff5252}
-input[type="number"]{width:100%;padding:4px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:var(--fg)}
-button.ctrl{padding:6px 10px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;margin-right:4px}
+input[type="text"]{min-width:300px;padding:6px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:var(--fg)}
+button.ctrl{padding:7px 12px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;margin-left:6px}
 button.ctrl:disabled{opacity:.4;cursor:default}
-progress{width:120px}
+progress{width:130px;height:14px}
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-thumb{background:#555;border-radius:4px}
 </style>
 </head>
 <body>
 
-<header>EIA Tools <strong>v0.2 Web</strong></header>
+<header>EIA Tools <span style="font-size:12px;font-weight:400;margin-left:4px">v0.2 Web</span></header>
 
 <aside id="sidebar"></aside>
-
 <main id="content"></main>
 
 <script>
-/* ---------- 기본 데이터 ---------- */
-const MENU = [
-  {key:'home',  label:'홈',                  type:'iframe', url:'https://www.eiass.go.kr/'},
-  {key:'eis',   label:'전례목록',           type:'iframe', url:'https://www.eiass.go.kr/search/totalSearch.do'},
-  {key:'sea',   label:'전략환경영향평가',   type:'iframe', url:'https://www.eiass.go.kr/sea/list.do'},
-  {key:'eia',   label:'환경영향평가',       type:'iframe', url:'https://www.eiass.go.kr/eia/list.do'},
-  {key:'post',  label:'사후조사업',         type:'iframe', url:'https://www.eiass.go.kr/esa/postList.do'},
-  {key:'climate',label:'기후변화영향평가',  type:'iframe', url:'https://www.eiass.go.kr/esa/climateList.do'},
-  {key:'dl',    label:'다운로드',           type:'download'}
+/* ---------- 메뉴 정의 ---------- */
+const MENU=[
+ {key:'home',    txt:'홈',                url:'https://www.eiass.go.kr/'},
+ {key:'total',   txt:'전체목록',          url:'https://www.eiass.go.kr/search/totalSearch.do'},
+ {key:'sea',     txt:'전략환경영향평가',  url:'https://www.eiass.go.kr/sea/list.do'},
+ {key:'small',   txt:'소규모 환경영향평가',url:'https://www.eiass.go.kr/sea/smallList.do'},
+ {key:'eia',     txt:'환경영향평가',      url:'https://www.eiass.go.kr/eia/list.do'},
+ {key:'post',    txt:'사후환경영향조사',  url:'https://www.eiass.go.kr/esa/postList.do'},
+ {key:'climate', txt:'기후변화영향평가',  url:'https://www.eiass.go.kr/esa/climateList.do'},
+ {key:'dl',      txt:'다운로드'}          // 특수 탭
 ];
 
-const EIASS_FILE = id => `https://www.eiass.go.kr/download.do?FILE_SEQ=${id}`;
-const PROXY = url => `/api/proxy?url=${encodeURIComponent(url)}`;
+const PROXY  = u=>`/api/proxy?url=${encodeURIComponent(u)}`;
+const EIASSF = s=>`https://www.eiass.go.kr/download.do?FILE_SEQ=${s}`;
 
-/* ---------- 사이드바 생성 ---------- */
-const sidebar   = document.getElementById('sidebar');
-const content   = document.getElementById('content');
-let   activeKey = null;
+/* ---------- 레이아웃 동적 생성 ---------- */
+const sidebar=document.getElementById('sidebar');
+const content=document.getElementById('content');
+let   active=null;
 
 MENU.forEach(m=>{
-  const btn=document.createElement('button');
-  btn.textContent=m.label;
-  btn.onclick=()=>activate(m.key);
-  sidebar.append(btn);
+  // 사이드바 버튼
+  const b=document.createElement('button');
+  b.textContent=m.txt;
+  b.onclick=()=>activate(m.key);
+  sidebar.append(b);
 
-  const panel=document.createElement('div');
-  panel.className='panel';
-  panel.id=`panel-${m.key}`;
-  content.append(panel);
-
-  if(m.type==='iframe'){
-    const iframe=document.createElement('iframe');
-    iframe.src=PROXY(m.url);          /* CORS 해결 */
-    iframe.style.cssText='width:100%;height:100%;border:0';
-    iframe.onload=()=>gsap.from(iframe,{opacity:0,duration:.4});
-    panel.append(iframe);
+  // 패널
+  const p=document.createElement('div');
+  p.id=`p-${m.key}`; p.className='panel';
+  if(m.key==='dl') p.innerHTML=makeDlPane(); else{
+    const f=document.createElement('iframe');
+    f.src=PROXY(m.url); p.append(f);
   }
-  if(m.type==='download'){
-    panel.innerHTML=downloadHTML();
-    initDownload(panel);
-  }
+  content.append(p);
 });
 activate('home');
 
 /* ---------- 탭 전환 ---------- */
-function activate(key){
-  if(activeKey===key) return;
-  activeKey=key;
-  [...sidebar.children].forEach(b=>b.classList.toggle('active',b.textContent===MENU.find(m=>m.key===key).label));
-  [...content.children].forEach(p=>p.classList.toggle('active',p.id===`panel-${key}`));
-  gsap.from(`#panel-${key}`,{opacity:0,duration:.3});
+function activate(k){
+  if(active===k)return;
+  active=k;
+  [...sidebar.children].forEach(b=>b.classList.toggle('active',b.textContent===MENU.find(o=>o.key===k).txt));
+  [...content.children].forEach(p=>p.classList.toggle('active',p.id===`p-${k}`));
 }
 
-/* ---------- 다운로드 탭 ---------- */
-function downloadHTML(){
+/* ---------- 다운로드 UI ---------- */
+function makeDlPane(){
 return `
-<h3 style="margin-bottom:8px">EIASS PDF 일괄 다운로드</h3>
-<label>파일 시퀀스(7자리 숫자, 쉼표 구분):
-  <input id="seqInput" type="text" placeholder="예) 1234567,7654321" style="margin-top:6px;width:300px">
-</label>
+<h3 style="margin-bottom:12px">EIASS PDF 일괄 다운로드</h3>
+<input id="seqInput" type="text" placeholder="시퀀스 7자리, 쉼표 구분">
 <button id="addBtn" class="ctrl">추가</button>
-<button id="startBtn" class="ctrl" disabled>다운로드 시작</button>
+<button id="runBtn" class="ctrl" disabled>다운로드</button>
 <table id="downloadTbl">
-  <thead><tr>
-    <th style="width:40px">#</th><th style="width:120px">시퀀스</th>
-    <th>제목</th><th style="width:120px">상태</th><th style="width:140px">진행률</th>
-  </tr></thead>
-  <tbody></tbody>
-</table>`;
+<thead><tr>
+ <th style="width:40px">#</th><th style="width:120px">시퀀스</th>
+ <th>제목</th><th style="width:100px">상태</th><th style="width:140px">진행률</th>
+</tr></thead><tbody></tbody></table>`;
 }
 
-function initDownload(panel){
-  const tbody  = panel.querySelector('tbody');
-  const addBtn = panel.querySelector('#addBtn');
-  const startBtn=panel.querySelector('#startBtn');
-  const input  = panel.querySelector('#seqInput');
+/* ---------- 다운로드 로직 ---------- */
+document.addEventListener('DOMContentLoaded',()=>initDl());
 
-  const rows = [];
+function initDl(){
+  const pane=document.getElementById('p-dl');
+  const input=pane.querySelector('#seqInput');
+  const addBtn=pane.querySelector('#addBtn');
+  const runBtn=pane.querySelector('#runBtn');
+  const tbody =pane.querySelector('#downloadTbl tbody');
+  const rows  =[];
 
   addBtn.onclick=()=>{
-    const list=input.value.split(/[,\\s]+/).map(s=>s.trim()).filter(s=>/^[0-9]{7}$/.test(s));
-    list.forEach(seq=>{
-      if(rows.find(r=>r.seq===seq)) return;
-      const tr=document.createElement('tr');
-      tr.innerHTML=`<td>${rows.length+1}</td>
-        <td>${seq}</td>
+    const seqs=[...new Set(input.value.split(/[,\\s]+/).filter(v=>/^[0-9]{7}$/.test(v)))];
+    seqs.forEach(s=>{
+      if(rows.find(r=>r.seq===s))return;
+      const tr=tbody.insertRow();
+      tr.innerHTML=`<td>${rows.length+1}</td><td>${s}</td>
         <td class="title status-wait">조회중…</td>
-        <td class="status status-wait">대기</td>
+        <td class="state status-wait">대기</td>
         <td><progress value="0" max="1"></progress></td>`;
-      tbody.append(tr);
-      rows.push({seq,tr,status:'wait'});
-      fetchTitle(seq,tr.querySelector('.title')).catch(()=>{});
+      rows.push({seq:s,tr,status:'wait'});
+      fetchTitle(s,tr.querySelector('.title'));
     });
-    if(rows.length) startBtn.disabled=false;
+    if(rows.length)runBtn.disabled=false;
     input.value='';
   };
 
   async function fetchTitle(seq,cell){
     try{
-      const r=await fetch(PROXY(EIASS_FILE(seq)),{method:'HEAD'});
-      const name=r.headers.get('content-disposition')||'';
-      const m=name.match(/filename\\*=UTF-8''(.+?)(?:;|$)/i);
+      const r=await fetch(PROXY(EIASSF(seq)),{method:'HEAD'});
+      const cd=r.headers.get('content-disposition')||'';
+      const m=cd.match(/filename\\*=UTF-8''(.+?)(?:;|$)/i);
       cell.textContent=m?decodeURIComponent(m[1]):'(제목 조회 실패)';
     }catch{cell.textContent='(제목 조회 실패)'}
     cell.className='';
   }
 
-  startBtn.onclick=()=>startDownload(rows,startBtn);
-
+  runBtn.onclick=()=>downloadAll(rows,runBtn);
 }
 
-/* ---------- 다운로드 로직 ---------- */
-async function startDownload(rows,btn){
+async function downloadAll(rows,btn){
   btn.disabled=true;
-  let running=0,index=0,done=0;
-  const MAX=3;
+  const MAX=3; let inFlight=0,idx=0,done=0;
 
   return new Promise(res=>{
-    const next=()=>{
+    const pump=()=>{
       if(done===rows.length){btn.disabled=false;return res();}
-      while(running<MAX && index<rows.length){
-        const row=rows[index++]; if(row.status!=='wait') continue;
-        downloadOne(row).finally(()=>{running--;done++;next();});
-        running++;
+      while(inFlight<MAX && idx<rows.length){
+        const row=rows[idx++];
+        if(row.status!=='wait')continue;
+        load(row).finally(()=>{inFlight--;done++;pump();});
+        inFlight++;
       }
     };
-    next();
+    pump();
   });
 }
 
-async function downloadOne(row){
-  const {seq,tr}=row;
-  const status=tr.querySelector('.status');
-  const bar   =tr.querySelector('progress');
-  status.textContent='다운로드 중'; status.className='status status-down';
+async function load(row){
+  const st=row.tr.querySelector('.state');
+  const bar=row.tr.querySelector('progress');
+  st.textContent='다운로드 중';st.className='state status-down';
 
   try{
-    const r=await fetch(PROXY(EIASS_FILE(seq)));
-    if(!r.ok) throw new Error(r.statusText);
+    const r=await fetch(PROXY(EIASSF(row.seq)));
+    if(!r.ok)throw new Error(r.statusText);
     const blob=await r.blob();
-    saveAs(blob,`${seq}.pdf`);
-    status.textContent='완료'; status.className='status status-ok';
-    bar.value=1;
+    saveAs(blob,`${row.seq}.pdf`);
+    st.textContent='완료';st.className='state status-ok';bar.value=1;
   }catch(e){
-    console.error(e);
-    status.textContent='실패'; status.className='status status-fail';
+    st.textContent='실패';st.className='state status-fail';
   }
 }
 </script>
