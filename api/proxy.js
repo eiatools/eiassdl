@@ -1,16 +1,18 @@
 // /api/proxy.js
-import http from "http";
+import http  from "http";
 import https from "https";
 import { constants } from "crypto";
+import fs     from "fs";          // CA 삽입용 (옵션)
 
 const httpsAgent = new https.Agent({
   keepAlive: true,
-  family: 4,
-  minVersion: "TLSv1",
+  family: 4,                           // IPv4 고정
+  rejectUnauthorized: false,           // 인증서 검증 OFF  ← (파이썬과 동일)
+  minVersion: "TLSv1",                 // 구형 TLS 허용
   secureOptions: constants.SSL_OP_LEGACY_SERVER_CONNECT,
-  rejectUnauthorized: false      // ← ★ 검증 OFF (테스트용)
+  ciphers: "DEFAULT@SECLEVEL=1"        // OpenSSL SECLEVEL=1
 });
-const httpAgent = new http.Agent({ keepAlive: true, family: 4 });
+const httpAgent  = new http.Agent({ keepAlive: true, family: 4 });
 
 export default async function handler(req, res) {
   try {
@@ -22,12 +24,12 @@ export default async function handler(req, res) {
       return res.status(403).send("Forbidden host");
 
     const upstream = await fetch(raw, {
-      method: req.method,
+      method : req.method,
       headers: { ...req.headers, host },
-      body: ["POST","PUT","PATCH"].includes(req.method) ? req.body : undefined,
-      agent: raw.startsWith("https") ? httpsAgent : httpAgent,
+      body   : ["POST","PUT","PATCH"].includes(req.method) ? req.body : undefined,
+      agent  : raw.startsWith("https") ? httpsAgent : httpAgent,
       redirect: "follow",
-      cache: "no-store"
+      cache   : "no-store"
     });
 
     res.status(upstream.status);
@@ -40,7 +42,7 @@ export default async function handler(req, res) {
     const data = await upstream.arrayBuffer();
     res.send(Buffer.from(data));
   } catch (e) {
-    console.error("proxy error:", e);
+    console.error("proxy error:", e);          // Vercel 로그 확인용
     res.status(500).send("Proxy error: " + e.message);
   }
 }
