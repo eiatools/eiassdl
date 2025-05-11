@@ -1,15 +1,16 @@
 // /api/proxy.js
+import http from "http";
 import https from "https";
-import http  from "http";
 import { constants } from "crypto";
 
 const httpsAgent = new https.Agent({
   keepAlive: true,
-  family: 4,                                      // ★ IPv4만 사용
-  // ★ 구형 TLS 서버와도 연결
-  secureOptions: constants.SSL_OP_LEGACY_SERVER_CONNECT
+  family: 4,                                // ★ IPv4만
+  minVersion: "TLSv1",                      // ★ TLS 1.0까지 허용
+  secureOptions: constants.SSL_OP_LEGACY_SERVER_CONNECT,
+  rejectUnauthorized: false                // ★ 인증서 무시(테스트용)
 });
-const httpAgent  = new http.Agent({ keepAlive: true, family: 4 });
+const httpAgent = new http.Agent({ keepAlive: true, family: 4 });
 
 export default async function handler(req, res) {
   try {
@@ -22,12 +23,15 @@ export default async function handler(req, res) {
 
     const upstream = await fetch(raw, {
       method: req.method,
-      headers: { ...req.headers, host },
-      body: ["POST","PUT","PATCH"].includes(req.method) ? req.body : undefined,
-      // ★ 프로토콜별 에이전트 지정
+      headers: {
+        ...req.headers,
+        host,
+        "user-agent": req.headers["user-agent"] || "Mozilla/5.0",
+      },
+      body: ["POST", "PUT", "PATCH"].includes(req.method) ? req.body : undefined,
       agent: raw.startsWith("https") ? httpsAgent : httpAgent,
       redirect: "follow",
-      cache: "no-store"
+      cache: "no-store",
     });
 
     res.status(upstream.status);
@@ -38,10 +42,10 @@ export default async function handler(req, res) {
       res.setHeader(k, v);
     });
 
-    const data = await upstream.arrayBuffer();
-    res.send(Buffer.from(data));
+    const buf = await upstream.arrayBuffer();
+    res.send(Buffer.from(buf));
   } catch (e) {
-    console.error("proxy error:", e);            // 로그에 전체 스택 출력
+    console.error("proxy error:", e);         // ★ 스택 전체 로그
     res.status(500).send("Proxy error: " + e.message);
   }
 }
