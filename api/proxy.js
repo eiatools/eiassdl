@@ -1,3 +1,6 @@
+// /api/proxy.js 파일 맨 위에 추가
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 // /api/proxy.js
 import http  from "http";
 import https from "https";
