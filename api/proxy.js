@@ -5,31 +5,33 @@ export default async function handler(req, res) {
     const raw = req.query.url;
     if (!raw) return res.status(400).send("Missing url parameter");
 
-    // ----- 호스트 추출 -----
     let host = "";
     try {
-      host = new URL(raw).hostname;           // https:// 포함해도 안전
+      host = new URL(raw).hostname.trim();   // 좌우 공백 제거
     } catch {
       return res.status(400).send("Bad url");
     }
 
-    // ----- 허용 도메인 (www·서브도메인·포트 모두 허용) -----
-    const allow = /^([a-z0-9-]+\\.)*eiass\\.go\\.kr$/i;
-    if (!allow.test(host)) return res.status(403).send("Forbidden host");
+    /* ----- 디버그 ----- */
+    console.log("proxy host:", `"${host}"`);  // Vercel 로그에서 확인
+    /* ------------------ */
 
-    // ----- 원본 요청 전달 -----
+    // ★ 훨씬 느슨하게: ‘eiass.go.kr’로 끝나면 OK
+    if (!host.replace(/\.$/, "").toLowerCase().endsWith("eiass.go.kr")) {
+      return res.status(403).send("Forbidden host");
+    }
+
+    /* 이하 동일 */
     const upstream = await fetch(raw, {
       method: req.method,
       headers: {
         ...req.headers,
-        host                : host,          // EIASS가 host 헤더 검사할 경우 대비
-        "x-forwarded-for"   : req.headers["x-forwarded-for"] || req.socket.remoteAddress
+        host,
+        "x-forwarded-for": req.headers["x-forwarded-for"] || req.socket?.remoteAddress
       },
-      body:
-        ["POST", "PUT", "PATCH"].includes(req.method) ? req.body : undefined,
+      body: ["POST", "PUT", "PATCH"].includes(req.method) ? req.body : undefined,
     });
 
-    // ----- 헤더 필터링 -----
     res.status(upstream.status);
     upstream.headers.forEach((v, k) => {
       const lower = k.toLowerCase();
@@ -37,7 +39,6 @@ export default async function handler(req, res) {
       res.setHeader(k, v);
     });
 
-    // ----- 응답 전달 -----
     const buf = await upstream.arrayBuffer();
     res.send(Buffer.from(buf));
   } catch (e) {
