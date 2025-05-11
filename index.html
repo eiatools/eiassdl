@@ -1,184 +1,144 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<title>EIA Tools v0.2 Web</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="preconnect" href="https://cdnjs.cloudflare.com">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-<style>
-:root{
- --bg:#272727;--fg:#e6e6e6;--accent:#0095ff;--panel:#1e1e1e;
- --sidebar:150px;--h:44px;
-}
-*{box-sizing:border-box;margin:0;padding:0;font-family:"Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans KR",sans-serif}
-body{background:var(--bg);color:var(--fg);display:flex;height:100vh;overflow:hidden}
-header{position:fixed;top:0;left:0;right:0;height:var(--h);background:#111;padding:0 12px;display:flex;align-items:center;font-weight:700;font-size:15px;z-index:3}
-aside{width:var(--sidebar);background:#1b1b1b;padding-top:var(--h);position:fixed;left:0;top:0;bottom:0;overflow-y:auto}
-aside button{display:block;width:100%;border:none;background:none;color:var(--fg);text-align:left;padding:10px 14px 10px 16px;font-size:14px;cursor:pointer;transition:.15s}
-aside button:hover{background:#2d2d2d}
-aside button.active{background:var(--accent);color:#fff;font-weight:700}
-#content{flex:1;margin-left:var(--sidebar);padding-top:var(--h);overflow:hidden;position:relative}
-.panel{position:absolute;inset:0;padding:16px;display:none}
-.panel.active{display:block}
-iframe{width:100%;height:100%;border:0}
-#downloadTbl{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px}
-#downloadTbl th,#downloadTbl td{border:1px solid #444;padding:6px 8px;text-align:center}
-#downloadTbl th{background:#333}
-.status-wait{color:#999}
-.status-down{color:var(--accent)}
-.status-ok{color:#43c65e}
-.status-fail{color:#ff5252}
-input[type="text"]{min-width:300px;padding:6px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:var(--fg)}
-button.ctrl{padding:7px 12px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;margin-left:6px}
-button.ctrl:disabled{opacity:.4;cursor:default}
-progress{width:130px;height:14px}
-::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-thumb{background:#555;border-radius:4px}
-</style>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>EIASS Viewer & Downloader</title>
+  <!-- GSAP & FileSaver CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;font-family:'Noto Sans KR',sans-serif}
+    body{display:flex;height:100vh;background:#f5f5f5;color:#333}
+    #sidebar{width:220px;background:#222;display:flex;flex-direction:column}
+    #sidebar h1{color:#fff;font-size:1.2rem;font-weight:bold;padding:18px 20px}
+    .menu-btn{width:100%;padding:14px 20px;border:none;background:#222;color:#ddd;text-align:left;font-size:.92rem;cursor:pointer;transition:.2s}
+    .menu-btn:hover,.menu-btn.active{background:#444;color:#fff}
+    #content{flex:1;position:relative;background:#fff;overflow:hidden}
+    iframe{border:none;width:100%;height:100%}
+    #downloadPane{display:flex;flex-direction:column;gap:16px;padding:40px;max-width:640px;margin:0 auto}
+    #downloadPane input,#downloadPane textarea{padding:10px;width:100%;border:1px solid #ccc;border-radius:4px;font-size:1rem}
+    #downloadPane button{padding:12px;border:none;border-radius:4px;background:#0095ff;color:#fff;font-size:1rem;cursor:pointer;transition:.2s}
+    #downloadPane button:hover{background:#0077d9}
+    #log{height:160px;overflow:auto;border:1px solid #ddd;border-radius:4px;padding:10px;font-size:.85rem;background:#fafafa}
+    .prog{margin-top:6px;height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden}
+    .bar{height:100%;width:0;background:#4caf50}
+  </style>
 </head>
 <body>
+  <nav id="sidebar">
+    <h1>EIASS</h1>
+  </nav>
+  <main id="content"></main>
+  <script>
+    const BASE_DOWNLOAD_URL = "https://www.eiass.go.kr/common/file/downloadPdfByFileSeq.do";
 
-<header>EIA Tools <span style="font-size:12px;font-weight:400;margin-left:4px">v0.2 Web</span></header>
+    // 메뉴 정의 (총 10개)
+    const MENU = [
+      {title:'전체목록', key:'all', url:'https://eiass.go.kr/biz/base/info/searchListNew.do?menu=biz&biz_gubn='},
+      {title:'전략환경영향평가', key:'strategic', url:'https://eiass.go.kr/biz/base/info/perList.do?menu=biz&biz_gubn=S'},
+      {title:'소규모 환경영향평가', key:'small', url:'https://www.eiass.go.kr/biz/base/info/perList.do?menu=biz&biz_gubn=M'},
+      {title:'환경영향평가', key:'eia', url:'https://www.eiass.go.kr/biz/base/info/eiaList.do?menu=biz&biz_gubn=E'},
+      {title:'사후환경영향조사', key:'after', url:'https://www.eiass.go.kr/biz/base/info/afterList.do?menu=biz&biz_gubn=A'},
+      {title:'사전환경성검토', key:'pre', url:'https://www.eiass.go.kr/biz/base/info/perList.do?menu=biz&biz_gubn=P'},
+      {title:'기후변화영향평가', key:'climate', url:'https://www.eiass.go.kr/biz/base/info/weatherList.do'},
+      {title:'평가항목 결정내용 공람', key:'decision', url:'https://www.eiass.go.kr/partcptn/result/resultSperssList.do'},
+      {title:'평가서 초안 공람', key:'draft', url:'https://www.eiass.go.kr/partcptn/choan/choanSperssList.do'},
+      {title:'다운로드', key:'download', url:null}
+    ];
 
-<aside id="sidebar"></aside>
-<main id="content"></main>
+    const sidebar = document.getElementById('sidebar');
+    const content = document.getElementById('content');
 
-<script>
-/* ---------- 메뉴 정의 ---------- */
-const MENU=[
- {key:'home',    txt:'홈',                url:'https://www.eiass.go.kr/'},
- {key:'total',   txt:'전체목록',          url:'https://www.eiass.go.kr/search/totalSearch.do'},
- {key:'sea',     txt:'전략환경영향평가',  url:'https://www.eiass.go.kr/sea/list.do'},
- {key:'small',   txt:'소규모 환경영향평가',url:'https://www.eiass.go.kr/sea/smallList.do'},
- {key:'eia',     txt:'환경영향평가',      url:'https://www.eiass.go.kr/eia/list.do'},
- {key:'post',    txt:'사후환경영향조사',  url:'https://www.eiass.go.kr/esa/postList.do'},
- {key:'climate', txt:'기후변화영향평가',  url:'https://www.eiass.go.kr/esa/climateList.do'},
- {key:'dl',      txt:'다운로드'}          // 특수 탭
-];
-
-const PROXY  = u=>`/api/proxy?url=${encodeURIComponent(u)}`;
-const EIASSF = s=>`https://www.eiass.go.kr/download.do?FILE_SEQ=${s}`;
-
-/* ---------- 레이아웃 동적 생성 ---------- */
-const sidebar=document.getElementById('sidebar');
-const content=document.getElementById('content');
-let   active=null;
-
-MENU.forEach(m=>{
-  // 사이드바 버튼
-  const b=document.createElement('button');
-  b.textContent=m.txt;
-  b.onclick=()=>activate(m.key);
-  sidebar.append(b);
-
-  // 패널
-  const p=document.createElement('div');
-  p.id=`p-${m.key}`; p.className='panel';
-  if(m.key==='dl') p.innerHTML=makeDlPane(); else{
-    const f=document.createElement('iframe');
-    f.src=PROXY(m.url); p.append(f);
-  }
-  content.append(p);
-});
-activate('home');
-
-/* ---------- 탭 전환 ---------- */
-function activate(k){
-  if(active===k)return;
-  active=k;
-  [...sidebar.children].forEach(b=>b.classList.toggle('active',b.textContent===MENU.find(o=>o.key===k).txt));
-  [...content.children].forEach(p=>p.classList.toggle('active',p.id===`p-${k}`));
-}
-
-/* ---------- 다운로드 UI ---------- */
-function makeDlPane(){
-return `
-<h3 style="margin-bottom:12px">EIASS PDF 일괄 다운로드</h3>
-<input id="seqInput" type="text" placeholder="시퀀스 7자리, 쉼표 구분">
-<button id="addBtn" class="ctrl">추가</button>
-<button id="runBtn" class="ctrl" disabled>다운로드</button>
-<table id="downloadTbl">
-<thead><tr>
- <th style="width:40px">#</th><th style="width:120px">시퀀스</th>
- <th>제목</th><th style="width:100px">상태</th><th style="width:140px">진행률</th>
-</tr></thead><tbody></tbody></table>`;
-}
-
-/* ---------- 다운로드 로직 ---------- */
-document.addEventListener('DOMContentLoaded',()=>initDl());
-
-function initDl(){
-  const pane=document.getElementById('p-dl');
-  const input=pane.querySelector('#seqInput');
-  const addBtn=pane.querySelector('#addBtn');
-  const runBtn=pane.querySelector('#runBtn');
-  const tbody =pane.querySelector('#downloadTbl tbody');
-  const rows  =[];
-
-  addBtn.onclick=()=>{
-    const seqs=[...new Set(input.value.split(/[,\\s]+/).filter(v=>/^[0-9]{7}$/.test(v)))];
-    seqs.forEach(s=>{
-      if(rows.find(r=>r.seq===s))return;
-      const tr=tbody.insertRow();
-      tr.innerHTML=`<td>${rows.length+1}</td><td>${s}</td>
-        <td class="title status-wait">조회중…</td>
-        <td class="state status-wait">대기</td>
-        <td><progress value="0" max="1"></progress></td>`;
-      rows.push({seq:s,tr,status:'wait'});
-      fetchTitle(s,tr.querySelector('.title'));
+    // 메뉴 버튼 렌더
+    MENU.forEach((m,i)=>{
+      const btn=document.createElement('button');
+      btn.className='menu-btn';
+      btn.textContent=m.title;
+      btn.onclick=()=>selectMenu(i);
+      sidebar.appendChild(btn);
     });
-    if(rows.length)runBtn.disabled=false;
-    input.value='';
-  };
 
-  async function fetchTitle(seq,cell){
-    try{
-      const r=await fetch(PROXY(EIASSF(seq)),{method:'HEAD'});
-      const cd=r.headers.get('content-disposition')||'';
-      const m=cd.match(/filename\\*=UTF-8''(.+?)(?:;|$)/i);
-      cell.textContent=m?decodeURIComponent(m[1]):'(제목 조회 실패)';
-    }catch{cell.textContent='(제목 조회 실패)'}
-    cell.className='';
-  }
+    function clearActive(){
+      [...document.querySelectorAll('.menu-btn')].forEach(b=>b.classList.remove('active'));
+    }
 
-  runBtn.onclick=()=>downloadAll(rows,runBtn);
-}
-
-async function downloadAll(rows,btn){
-  btn.disabled=true;
-  const MAX=3; let inFlight=0,idx=0,done=0;
-
-  return new Promise(res=>{
-    const pump=()=>{
-      if(done===rows.length){btn.disabled=false;return res();}
-      while(inFlight<MAX && idx<rows.length){
-        const row=rows[idx++];
-        if(row.status!=='wait')continue;
-        load(row).finally(()=>{inFlight--;done++;pump();});
-        inFlight++;
+    function selectMenu(idx){
+      const menu=MENU[idx];
+      clearActive();
+      sidebar.children[idx+1].classList.add('active'); // +1 offset for h1
+      content.innerHTML='';
+      if(menu.key==='download'){
+        renderDownloadPane();
+      }else if(menu.url){
+        const frame=document.createElement('iframe');
+        frame.src=`/api/proxy?url=${encodeURIComponent(menu.url)}`;
+        content.appendChild(frame);
       }
-    };
-    pump();
-  });
-}
+      gsap.fromTo(content,{opacity:0},{opacity:1,duration:0.25});
+    }
 
-async function load(row){
-  const st=row.tr.querySelector('.state');
-  const bar=row.tr.querySelector('progress');
-  st.textContent='다운로드 중';st.className='state status-down';
+    // 첫 메뉴 기본 선택
+    selectMenu(0);
 
-  try{
-    const r=await fetch(PROXY(EIASSF(row.seq)));
-    if(!r.ok)throw new Error(r.statusText);
-    const blob=await r.blob();
-    saveAs(blob,`${row.seq}.pdf`);
-    st.textContent='완료';st.className='state status-ok';bar.value=1;
-  }catch(e){
-    st.textContent='실패';st.className='state status-fail';
-  }
-}
-</script>
+    function renderDownloadPane(){
+      const pane=document.createElement('section');
+      pane.id='downloadPane';
+      pane.innerHTML=`
+        <label>시퀀스 번호 입력 (여러 개는 쉼표·공백·줄바꿈):</label>
+        <textarea id="seqInput" rows="4" placeholder="예: 1234567, 2345678"></textarea>
+        <button id="run">다운로드</button>
+        <div class="prog"><div class="bar" id="progressBar"></div></div>
+        <pre id="log"></pre>
+      `;
+      content.appendChild(pane);
+      document.getElementById('run').onclick=runDownloadFlow;
+    }
+
+    async function runDownloadFlow(){
+      const raw=document.getElementById('seqInput').value;
+      const seqList=[...new Set(raw.split(/[^0-9]+/).filter(s=>s.length===7))];
+      if(!seqList.length){alert('7자리 시퀀스 번호를 입력하세요');return;}
+      log(`총 ${seqList.length}건 다운로드 시작`);
+      const bar=document.getElementById('progressBar');
+      let finished=0;
+      const concurrency=3;
+      let active=0;let idx=0;
+      function next(){
+        if(idx>=seqList.length){return;}
+        while(active<concurrency&&idx<seqList.length){
+          const seq=seqList[idx++];
+          active++;
+          downloadSeq(seq).finally(()=>{active--;finished++;bar.style.width=`${finished/seqList.length*100}%`;next();});
+        }
+        if(finished===seqList.length){log('다운로드 완료');}
+      }
+      next();
+    }
+
+    async function downloadSeq(seq){
+      const url=`${BASE_DOWNLOAD_URL}?FILE_SEQ=${seq}`;
+      try{
+        const res=await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
+        if(!res.ok){throw new Error(res.statusText);}        
+        const cd=res.headers.get('content-disposition')||'';
+        let filename=`${seq}.pdf`;
+        const match=cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
+        if(match){filename=decodeURIComponent(match[1].replace(/['"]/g,''));}
+        const blob=await res.blob();
+        saveAs(blob,filename);
+        log(`✅ ${seq} → ${filename}`);
+      }catch(e){
+        log(`❌ ${seq}: ${e.message}`);
+      }
+    }
+
+    function log(msg){
+      const el=document.getElementById('log');
+      el.textContent+=`\n${new Date().toLocaleTimeString()} ${msg}`;
+      el.scrollTop=el.scrollHeight;
+    }
+  </script>
 </body>
 </html>
