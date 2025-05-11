@@ -11,59 +11,50 @@
   <style>
     *{box-sizing:border-box;margin:0;padding:0;font-family:'Noto Sans KR',sans-serif}
     body{display:flex;height:100vh;background:#f5f5f5;color:#333}
-    #sidebar{width:220px;background:#222;display:flex;flex-direction:column}
+    #sidebar{width:220px;background:#222;display:flex;flex-direction:column;overflow:auto}
     #sidebar h1{color:#fff;font-size:1.2rem;font-weight:bold;padding:18px 20px}
-    .menu-btn{width:100%;padding:14px 20px;border:none;background:#222;color:#ddd;text-align:left;font-size:.92rem;cursor:pointer;transition:.2s}
+    .menu-btn{width:100%;padding:14px 20px;border:none;background:#222;color:#ddd;text-align:left;font-size:.9rem;cursor:pointer;transition:.2s}
     .menu-btn:hover,.menu-btn.active{background:#444;color:#fff}
-    #content{flex:1;position:relative;background:#fff;overflow:hidden}
-    iframe{border:none;width:100%;height:100%}
-
+    #content{flex:1;position:relative;overflow:auto;background:#fff}
+    #content.loading:before{content:'로딩 중...';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#666;background:rgba(255,255,255,.6);z-index:10}
     /* ---------------- Download UI ---------------- */
     #downloadPane{display:flex;flex-direction:column;height:100%;padding:24px;gap:14px}
     #downloadPane .section{background:#fafafa;border:1px solid #ddd;border-radius:6px;padding:18px}
     #downloadPane input{padding:8px 10px;border:1px solid #ccc;border-radius:4px;font-size:.95rem}
     #downloadPane button{padding:8px 16px;border:none;border-radius:4px;background:#4a90e2;color:#fff;font-size:.9rem;cursor:pointer;transition:.2s}
     #downloadPane button:hover{background:#357abd}
-
-    /* table */
     table{width:100%;border-collapse:collapse;font-size:.9rem}
-    thead{background:#f0f0f0;user-select:none}
+    thead{background:#f0f0f0}
     th,td{border:1px solid #ddd;padding:6px;text-align:center}
     td.filename{text-align:left}
     tbody tr.selected{background:#4a90e2;color:#fff}
-
-    /* progress */
     .prog{height:10px;background:#e0e0e0;border-radius:5px;overflow:hidden}
     .bar{height:100%;width:0;background:#2ecc71}
-    #statusLbl{font-size:.85rem;margin-top:4px}
   </style>
 </head>
 <body>
-  <nav id="sidebar">
-    <h1>EIASS</h1>
-  </nav>
+  <nav id="sidebar"><h1>EIASS</h1></nav>
   <main id="content"></main>
   <script>
-    const BASE_DOWNLOAD_URL = "https://www.eiass.go.kr/common/file/downloadPdfByFileSeq.do";
+    const EIASS="https://www.eiass.go.kr";
+    const BASE_DOWNLOAD_URL=`${EIASS}/common/file/downloadPdfByFileSeq.do`;
 
-    // 메뉴 정의 (총 10개)
-    const MENU = [
-      {title:'전체목록', key:'all', url:'https://eiass.go.kr/biz/base/info/searchListNew.do?menu=biz&biz_gubn='},
-      {title:'전략환경영향평가', key:'strategic', url:'https://eiass.go.kr/biz/base/info/perList.do?menu=biz&biz_gubn=S'},
-      {title:'소규모 환경영향평가', key:'small', url:'https://www.eiass.go.kr/biz/base/info/perList.do?menu=biz&biz_gubn=M'},
-      {title:'환경영향평가', key:'eia', url:'https://www.eiass.go.kr/biz/base/info/eiaList.do?menu=biz&biz_gubn=E'},
-      {title:'사후환경영향조사', key:'after', url:'https://www.eiass.go.kr/biz/base/info/afterList.do?menu=biz&biz_gubn=A'},
-      {title:'사전환경성검토', key:'pre', url:'https://www.eiass.go.kr/biz/base/info/perList.do?menu=biz&biz_gubn=P'},
-      {title:'기후변화영향평가', key:'climate', url:'https://www.eiass.go.kr/biz/base/info/weatherList.do'},
-      {title:'평가항목 결정내용 공람', key:'decision', url:'https://www.eiass.go.kr/partcptn/result/resultSperssList.do'},
-      {title:'평가서 초안 공람', key:'draft', url:'https://www.eiass.go.kr/partcptn/choan/choanSperssList.do'},
-      {title:'다운로드', key:'download', url:null}
+    const MENU=[
+      {title:'전체목록', url:`${EIASS}/biz/base/info/searchListNew.do?menu=biz&biz_gubn=`},
+      {title:'전략환경영향평가', url:`${EIASS}/biz/base/info/perList.do?menu=biz&biz_gubn=S`},
+      {title:'소규모 환경영향평가', url:`${EIASS}/biz/base/info/perList.do?menu=biz&biz_gubn=M`},
+      {title:'환경영향평가', url:`${EIASS}/biz/base/info/eiaList.do?menu=biz&biz_gubn=E`},
+      {title:'사후환경영향조사', url:`${EIASS}/biz/base/info/afterList.do?menu=biz&biz_gubn=A`},
+      {title:'사전환경성검토', url:`${EIASS}/biz/base/info/perList.do?menu=biz&biz_gubn=P`},
+      {title:'기후변화영향평가', url:`${EIASS}/biz/base/info/weatherList.do`},
+      {title:'평가항목 결정내용 공람', url:`${EIASS}/partcptn/result/resultSperssList.do`},
+      {title:'평가서 초안 공람', url:`${EIASS}/partcptn/choan/choanSperssList.do`},
+      {title:'다운로드', url:null}
     ];
 
-    const sidebar = document.getElementById('sidebar');
-    const content = document.getElementById('content');
+    const sidebar=document.getElementById('sidebar');
+    const content=document.getElementById('content');
 
-    // 메뉴 버튼 렌더
     MENU.forEach((m,i)=>{
       const btn=document.createElement('button');
       btn.className='menu-btn';
@@ -72,205 +63,50 @@
       sidebar.appendChild(btn);
     });
 
-    function clearActive(){
-      [...document.querySelectorAll('.menu-btn')].forEach(b=>b.classList.remove('active'));
-    }
+    function clearActive(){document.querySelectorAll('.menu-btn').forEach(b=>b.classList.remove('active'));}
 
-    function selectMenu(idx){
-      const menu=MENU[idx];
-      clearActive();
-      sidebar.children[idx+1].classList.add('active'); // +1 offset for h1
+    async function selectMenu(idx){
+      const m=MENU[idx];
+      clearActive();sidebar.children[idx+1].classList.add('active');
       content.innerHTML='';
-      if(menu.key==='download'){
-        renderDownloadPane();
-      }else if(menu.url){
-        const frame=document.createElement('iframe');
-        frame.src=`/api/proxy?url=${encodeURIComponent(menu.url)}`;
-        content.appendChild(frame);
-      }
-      gsap.fromTo(content,{opacity:0},{opacity:1,duration:0.25});
+      if(!m.url){renderDownloadPane();return;}
+      content.classList.add('loading');
+      try{
+        const res=await fetch(`/api/proxy?url=${encodeURIComponent(m.url)}`);
+        const html=await res.text();
+        const doc=new DOMParser().parseFromString(html,'text/html');
+        let part=doc.querySelector('article')||doc.querySelector('#wrap')||doc.body;
+        // 링크 수정
+        part.querySelectorAll('a[href]').forEach(a=>{
+          const href=a.getAttribute('href');
+          if(!href||href.startsWith('javascript'))return;
+          const abs=new URL(href,m.url).href;
+          a.href='#';
+          a.onclick=e=>{e.preventDefault();window.open(`/api/proxy?url=${encodeURIComponent(abs)}`,'_blank');};
+        });
+        content.appendChild(part);
+      }catch(e){content.textContent='로드 실패: '+e.message;}
+      finally{content.classList.remove('loading');}
     }
 
-    // 첫 메뉴 기본 선택
+    // 초기 메뉴
     selectMenu(0);
 
-    /* ----------------------------- DOWNLOAD TAB ----------------------------- */
-
-    // 전역 다운로드 목록
-    let downloadList = [];
+    /* ---------------- DOWNLOAD TAB ---------------- */
+    let list=[];
+    const $=id=>document.getElementById(id);
 
     function renderDownloadPane(){
-      const pane=document.createElement('section');
-      pane.id='downloadPane';
-
-      /* 입력 영역 */
-      const inputSec = document.createElement('div');
-      inputSec.className='section';
-      inputSec.innerHTML = `
-        <h3 style="font-size:1rem;margin-bottom:12px">시퀀스 번호 입력</h3>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-          <input id="singleSeq" placeholder="7자리 시퀀스" style="flex:1 1 140px" maxlength="7" />
-          <button id="addSingle">추가</button>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input id="startSeq" placeholder="시작 시퀀스" style="flex:1 1 140px" maxlength="7" />
-          <span>~</span>
-          <input id="endSeq" placeholder="끝 시퀀스" style="flex:1 1 140px" maxlength="7" />
-          <button id="addRange">범위 추가</button>
-        </div>`;
-      pane.appendChild(inputSec);
-
-      /* 버튼 영역 */
-      const btnSec=document.createElement('div');
-      btnSec.className='section';
-      btnSec.style.display='flex';
-      btnSec.style.gap='8px';
-      btnSec.innerHTML=`
-        <button id="deleteSelected" style="background:#e74c3c">선택 삭제</button>
-        <button id="deleteAll" style="background:#e74c3c">전체 삭제</button>
-        <div style="flex:1"></div>
-        <button id="downloadRun" style="background:#2ecc71">다운로드 실행</button>`;
-      pane.appendChild(btnSec);
-
-      /* 목록 테이블 */
-      const tableSec=document.createElement('div');
-      tableSec.className='section';
-      tableSec.style.flex='1 1 auto';
-      tableSec.style.overflow='auto';
-      tableSec.innerHTML=`
-        <table id="seqTable">
-          <thead>
-            <tr><th>순번</th><th>시퀀스번호</th><th>파일명</th><th>상태</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>`;
-      pane.appendChild(tableSec);
-
-      /* 진행률 */
-      const progSec=document.createElement('div');
-      progSec.className='section';
-      progSec.innerHTML=`
-        <div class="prog"><div class="bar" id="progBar"></div></div>
-        <div id="statusLbl">진행률: 0/0 (0%)</div>`;
-      pane.appendChild(progSec);
-
-      content.appendChild(pane);
-
-      // 이벤트 바인딩
-      document.getElementById('addSingle').onclick = ()=>{
-        const seq=document.getElementById('singleSeq').value.trim();
-        if(validateSeq(seq)){ addSeq(seq); document.getElementById('singleSeq').value=''; }
-      };
-      document.getElementById('addRange').onclick = ()=>{
-        const s=document.getElementById('startSeq').value.trim();
-        const e=document.getElementById('endSeq').value.trim();
-        if(validateSeq(s)&&validateSeq(e)&& Number(s)<=Number(e)){
-          for(let n=Number(s); n<=Number(e); n++){
-            addSeq(String(n).padStart(7,'0'));
-          }
-        }else alert('범위 입력이 올바르지 않습니다');
-      };
-      document.getElementById('deleteSelected').onclick = deleteSelectedRows;
-      document.getElementById('deleteAll').onclick = ()=>{downloadList=[]; renderTable();};
-      document.getElementById('downloadRun').onclick = startDownload;
-
-      // 테이블 클릭 선택 지원
-      document.getElementById('seqTable').addEventListener('click',e=>{
-        if(e.target.tagName==='TD'){
-          const tr=e.target.parentNode;
-          tr.classList.toggle('selected');
-        }
-      });
-
-      renderTable();
+      content.innerHTML=`<section id="downloadPane"><div class="section"><h3 style="margin-bottom:12px;font-size:1rem">시퀀스 번호 입력</h3><div style="display:flex;gap:8px;margin-bottom:10px"><input id="seq" maxlength="7" placeholder="7자리 시퀀스" style="flex:1"><button id="add">추가</button></div><div style="display:flex;gap:8px;align-items:center"><input id="seqStart" maxlength="7" placeholder="시작" style="flex:1"><span>~</span><input id="seqEnd" maxlength="7" placeholder="끝" style="flex:1"><button id="addRange">범위 추가</button></div></div><div class="section" style="display:flex;gap:8px;align-items:center"><button id="delSel" style="background:#e74c3c">선택 삭제</button><button id="delAll" style="background:#e74c3c">전체 삭제</button><div style="flex:1"></div><button id="run" style="background:#2ecc71">다운로드 실행</button></div><div class="section" style="flex:1;overflow:auto"><table id="tbl"><thead><tr><th>순번</th><th>시퀀스</th><th>상태</th></tr></thead><tbody></tbody></table></div><div class="section"><div class="prog"><div class="bar" id="bar"></div></div><div id="stat" style="margin-top:4px;font-size:.85rem">진행률: 0/0 (0%)</div></div></section>`;
+      $('#add').onclick=()=>{const s=$('seq').value.trim();if(valid(s)&&!list.some(o=>o.seq===s)){list.push({seq:s,status:'대기'});$('seq').value='';draw();}};
+      $('#addRange').onclick=()=>{const s=$('seqStart').value.trim(),e=$('seqEnd').value.trim();if(valid(s)&&valid(e)&&+s<=+e){for(let n=+s;n<=+e;n++){const seq=String(n).padStart(7,'0');if(!list.some(o=>o.seq===seq))list.push({seq,status:'대기'});}draw();}else alert('범위 오류');};
+      $('#delSel').onclick=()=>{const sel=[...document.querySelectorAll('#tbl tbody tr.selected')].map(r=>r.rowIndex-1);list=list.filter((_,i)=>!sel.includes(i));draw();};
+      $('#delAll').onclick=()=>{list=[];draw();};
+      $('#run').onclick=downloadAll;
+      document.getElementById('tbl').onclick=e=>{if(e.target.tagName==='TD')e.target.parentNode.classList.toggle('selected');};
+      draw();
     }
-
-    function validateSeq(seq){
-      if(seq.length!==7||!/^\d{7}$/.test(seq)){alert('시퀀스는 7자리 숫자여야 합니다');return false;}
-      return true;
-    }
-
-    async function addSeq(seq){
-      if(downloadList.find(i=>i.seq===seq)) return; // 중복 방지
-      // HEAD 요청으로 파일명 가져오기
-      const url=`${BASE_DOWNLOAD_URL}?FILE_SEQ=${seq}`;
-      let filename='';
-      try{
-        const res=await fetch(`/api/proxy?url=${encodeURIComponent(url)}`,{method:'HEAD'});
-        if(res.ok){
-          const cd=res.headers.get('content-disposition')||'';
-          const match=cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
-          if(match) filename=decodeURIComponent(match[1].replace(/['"]/g,''));
-        }
-      }catch{ /* ignore */ }
-      downloadList.push({seq, filename, status:'대기'});
-      renderTable();
-    }
-
-    function renderTable(){
-      const tbody=document.querySelector('#seqTable tbody');
-      tbody.innerHTML='';
-      downloadList.forEach((item,idx)=>{
-        const tr=document.createElement('tr');
-        tr.innerHTML=`<td>${idx+1}</td><td>${item.seq}</td><td class="filename">${item.filename||'-'}</td><td>${item.status}</td>`;
-        tbody.appendChild(tr);
-      });
-      updateProgress();
-    }
-
-    function deleteSelectedRows(){
-      const rows=[...document.querySelectorAll('#seqTable tbody tr.selected')];
-      if(!rows.length) return;
-      const indices=rows.map(r=>r.rowIndex-1); // header row index offset
-      downloadList=downloadList.filter((_,i)=>!indices.includes(i));
-      renderTable();
-    }
-
-    /* ------------------------ DOWNLOAD FLOW ------------------------ */
-    async function startDownload(){
-      const queue=downloadList.filter(i=>i.status==='대기');
-      if(!queue.length){alert('대기 중인 항목이 없습니다');return;}
-      const concurrency=3;
-      let active=0; let index=0;
-      return new Promise(resolve=>{
-        const next=()=>{
-          if(index>=queue.length && active===0){resolve();return;}
-          while(active<concurrency && index<queue.length){
-            const item=queue[index++];
-            active++;
-            item.status='진행중'; renderTable();
-            downloadItem(item).finally(()=>{active--; next();});
-          }
-        };
-        next();
-      });
-    }
-
-    async function downloadItem(item){
-      const url=`${BASE_DOWNLOAD_URL}?FILE_SEQ=${item.seq}`;
-      try{
-        const res=await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
-        if(!res.ok) throw new Error(res.statusText);
-        let filename=item.filename || `${item.seq}.pdf`;
-        const cd=res.headers.get('content-disposition')||'';
-        const match=cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
-        if(match) filename=decodeURIComponent(match[1].replace(/['"]/g,''));
-        const blob=await res.blob();
-        saveAs(blob,filename);
-        item.status='완료'; item.filename=filename;
-      }catch(e){
-        item.status='실패';
-      }
-      renderTable();
-    }
-
-    function updateProgress(){
-      const finished=downloadList.filter(i=>i.status==='완료').length;
-      const total=downloadList.length;
-      const percent=total?Math.round(finished/total*100):0;
-      document.getElementById('progBar').style.width=percent+'%';
-      document.getElementById('statusLbl').textContent=`진행률: ${finished}/${total} (${percent}%)`;
-    }
-  </script>
-</body>
-</html>
+    const valid=s=>/^\d{7}$/.test(s);
+    function draw(){const tbody=document.querySelector('#tbl tbody');tbody.innerHTML='';list.forEach((o,i)=>tbody.insertAdjacentHTML('beforeend',`<tr><td>${i+1}</td><td>${o.seq}</td><td id="st${o.seq}">${o.status}</td></tr>`));updateBar();}
+    function updateBar(){const done=list.filter(o=>o.status==='완료').length,p=list.length?Math.round(done/list.length*100):0;$('#bar').style.width=p+'%';$('#stat').textContent=`진행률: ${done}/${list.length} (${p}%)`;}
+    async function downloadAll(){for(const o of list){if(o.status!=='대기')continue;const td=$(`#st${o.seq}`);td.textContent='진행중';try{const url=`${BASE_DOWNLOAD_URL}?FILE_SEQ=${o.seq}`;const r=await fetch(`/
