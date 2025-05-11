@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>EIA Tools (EIASS 1‑Click) Web Edition</title>
+  <!-- GSAP & FileSaver -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.4/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <style>
+    :root{
+      --sidebar-width:180px;
+      /* Dark */
+      --bg-dark:#2c2c2c;--panel-dark:#363636;--text-dark:#fff;--accent-dark:#00ff85;--header-dark:#1e1e1e;
+      /* Light */
+      --bg-light:#f5f5f5;--panel-light:#fff;--text-light:#000;--accent-light:#007aff;--header-light:#fff;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;font-family:"NanumGothic",sans-serif;-webkit-tap-highlight-color:transparent}
+    html,body{height:100%;overflow:hidden}
+    body.dark{background:var(--bg-dark);color:var(--text-dark)}
+    body.light{background:var(--bg-light);color:var(--text-light)}
+    a{color:inherit;text-decoration:none}
+
+    /* Header */
+    header{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;user-select:none}
+    header.dark{background:var(--header-dark)}
+    header.light{background:var(--header-light)}
+    header h1{font-size:18px;font-weight:700}
+    .win-btn{border:none;background:none;font-size:20px;cursor:pointer;color:inherit}
+
+    /* Layout */
+    #app{display:flex;height:calc(100% - 48px)}
+    nav{width:var(--sidebar-width);overflow-y:auto;display:flex;flex-direction:column}
+    nav.dark{background:#333}
+    nav.light{background:#fff;border-right:1px solid #ddd}
+    nav button{width:100%;border:none;padding:12px 10px;text-align:left;background:transparent;color:inherit;font-weight:600;cursor:pointer;transition:background .15s,filter .15s}
+    nav button.active,nav button:hover{background:rgba(255,255,255,.1);filter:brightness(1.2)}
+    #content{flex:1;position:relative;overflow:hidden}
+    .panel{position:absolute;inset:0;padding:24px;overflow:auto;display:none}
+    .panel.active{display:block}
+
+    /* Download UI */
+    .form-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+    label{font-size:13px;font-weight:600}
+    input[type="text"]{padding:4px 6px;font-size:14px;border:1px solid #888;border-radius:2px}
+    input[readonly]{background:#cfcfcf;opacity:.8;cursor:not-allowed}
+    table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+    th,td{border:1px solid #555;padding:4px 6px}
+    th{background:#777;color:#fff}
+    tr.sel{background:#5578aa;color:#fff}
+    .progress-bar{height:6px;background:var(--accent-dark);transition:width .2s linear}
+
+    /* Scrollbar */
+    ::-webkit-scrollbar{width:8px;height:8px}
+    ::-webkit-scrollbar-thumb{background:#555;border-radius:4px}
+  </style>
+</head>
+<body class="dark">
+  <header class="dark">
+    <h1>EIA Tools <small style="font-size:12px;">v0.2 Web</small></h1>
+    <button id="themeBtn" class="win-btn" title="Toggle theme">🌞</button>
+  </header>
+
+  <div id="app">
+    <nav class="dark" id="sidebar"></nav>
+    <main id="content"></main>
+  </div>
+
+<script>
+/*************************************************
+ *  ⚙️  CONFIG
+ *************************************************/
+// 원본 EIASS 파일 다운로드 URL
+const EIASS_FILE_URL = "https://www.eiass.go.kr/common/file/downloadPdfByFileSeq.do";
+
+// 서버‑사이드 프록시 경로 (server.js 에 구현)
+const PROXY = (url)=>`/proxy?url=${encodeURIComponent(url)}`;
+
+// 좌측 메뉴 정의
+const PAGES={
+  "홈":"home",
+  "전체목록":"https://eiass.go.kr/biz/base/info/searchListNew.do?menu=biz&biz_gubn=",
+  "전략환경영향평가":"https://eiass.go.kr/biz/base/info/perList.do?menu=biz&biz_gubn=S",
+  "소규모 환경영향평가":"https://www.eiass.go.kr/biz/base/info/perList.do?menu=biz&biz_gubn=M",
+  "환경영향평가":"https://www.eiass.go.kr/biz/base/info/eiaList.do?menu=biz&biz_gubn=E",
+  "사후환경영향조사":"https://www.eiass.go.kr/biz/base/info/afterList.do?menu=biz&biz_gubn=A",
+  "사전환경성검토":"https://www.eiass.go.kr/biz/base/info/perList.do?menu=biz&biz_gubn=P",
+  "기후변화영향평가":"https://www.eiass.go.kr/biz/base/info/weatherList.do",
+  "평가항목 결정내용 공람":"https://www.eiass.go.kr/partcptn/result/resultSperssList.do",
+  "평가서 초안 공람":"https://www.eiass.go.kr/partcptn/choan/choanSperssList.do",
+  "다운로드":"download"
+};
+
+/*************************************************
+ *  🔧  기본 유틸 & 상태
+ *************************************************/
+const STATE={current:null,list:[],theme:"dark"};
+const $=(sel,el=document)=>el.querySelector(sel);
+const create=(tag,attrs={},...children)=>{
+  const el=document.createElement(tag);
+  for(const[k,v]of Object.entries(attrs)){
+    if(k.startsWith("on")&&typeof v==="function")el.addEventListener(k.slice(2),v);
+    else if(k==="class")el.className=v;
+    else el.setAttribute(k,v);
+  }
+  children.flat().forEach(c=>el.append(c));
+  return el;
+};
+
+/*************************************************
+ *  ☀️ / 🌙  테마 토글
+ *************************************************/
+const themeBtn=$("#themeBtn");
+function applyTheme(){
+  document.body.className=STATE.theme;
+  themeBtn.textContent=STATE.theme==="dark"?"🌞":"🌓";
+  $("header").className=STATE.theme;
+  $("nav").className=STATE.theme;
+}
+function toggleTheme(){
+  STATE.theme=STATE.theme==="dark"?"light":"dark";
+  applyTheme();
+  gsap.fromTo("body",{opacity:0},{opacity:1,duration:.35});
+}
+applyTheme();
+themeBtn.addEventListener("click",toggleTheme);
+
+/*************************************************
+ *  📑  사이드바 생성
+ *************************************************/
+const sidebar=$("#sidebar");
+Object.keys(PAGES).forEach(name=>sidebar.append(create("button",{onclick:()=>showPanel(name)},name)));
+function setActive(name){
+  [...sidebar.children].forEach(btn=>btn.classList.toggle("active",btn.textContent===name));
+}
+
+/*************************************************
+ *  📋  패널 스위치
+ *************************************************/
+const content=$("#content");
+function clearPanels(){content.innerHTML="";}
+
+function showPanel(name){
+  if(STATE.current===name) return;
+  STATE.current=name; setActive(name); clearPanels();
+
+  if(name==="홈")         return showHome();
+  if(name==="다운로드")    return showDownload();
+
+  // ▶︎ 외부 페이지 → 프록시를 거쳐 iframe 삽입
+  const panel=create("div",{class:"panel active"});
+  const iframe=create("iframe",{src:PROXY(PAGES[name]),style:"border:0;width:100%;height:100%"});
+  panel.append(iframe); content.append(panel);
+  gsap.from(panel,{autoAlpha:0,scale:.97,duration:.35});
+}
+
+/*************************************************
+ *  🏠  홈 패널
+ *************************************************/
+function showHome(){
+  const panel=create("div",{class:"panel active"});
+  panel.innerHTML=`<h2 style="margin-bottom:16px;">EIA Tools 웹 버전에 오신 것을 환영합니다 🎉</h2>
+  <p>좌측 메뉴에서 서비스를 선택하세요.<br>『다운로드』 탭에서는 EIASS 파일을 일괄 내려받을 수 있습니다.</p>`;
+  content.append(panel);
+  gsap.from(panel,{autoAlpha:0,y:20,duration:.4});
+}
+
+/*************************************************
+ *  ⬇️  다운로드 매니저
+ *************************************************/
+function showDownload(){
+  const panel=create("div",{class:"panel active"});
+  content.append(panel);
+  gsap.from(panel,{autoAlpha:0,scale:.95,duration:.35});
+
+  panel.innerHTML=`
+    <div class="form-row">
+      <label>저장 폴더</label>
+      <input type="text" value="브라우저 기본 다운로드 폴더" readonly style="flex:1 1 auto"/>
+    </div>
+    <div class="form-row">
+      <label>시퀀스(7자리)</label>
+      <input type="text" id="seqInput" maxlength="7" style="width:100px"/>
+      <button id="addSeqBtn">추가</button>
+      <label style="margin-left:16px;">범위</label>
+      <input type="text" id="startSeq" maxlength="7" placeholder="시작" style="width:90px"/>
+      <span>~</span>
+      <input type="text" id="endSeq" maxlength="7" placeholder="끝" style="width:90px"/>
+      <button id="addRangeBtn">범위 추가</button>
+      <button id="delSelBtn" style="margin-left:auto;">선택 삭제</button>
+      <button id="delAllBtn">전체 삭제</button>
+    </div>
+    <table id="fileTable"><thead><tr><th>#</th><th>Seq</th><th>Title</th><th>Status</th></tr></thead><tbody></tbody></table>
+    <div class="form-row" style="margin-top:12px"><button id="startDlBtn" style="flex:1 1 auto">다운로드 실행</button></div>
+    <div class="progress-container" style="margin-top:8px"><div class="progress-bar" id="globalBar" style="width:0%"></div></div>`;
+
+  const tbody=$("#fileTable tbody",panel);
+  $("#addSeqBtn",panel).onclick = addSeq;
+  $("#addRangeBtn",panel).onclick = addRange;
+  $("#delSelBtn",panel).onclick = deleteSelected;
+  $("#delAllBtn",panel).onclick = ()=>{ if(confirm("전체 삭제?")){ STATE.list=[]; redraw(); }};
+  $("#startDlBtn",panel).onclick = startDownload;
+
+  function redraw(){
+    tbody.innerHTML="";
+    STATE.list.forEach((f,i)=>{
+      const tr=create("tr",{"data-idx":i});
+      tr.append(create("td",{},i+1));
+      tr.append(create("td",{},f.seq));
+      tr.append(create("td",{},f.title||"(제목 조회 중)"));
+      tr.append(create("td",{},f.status||"대기"));
+      tr.onclick=()=>tr.classList.toggle("sel");
+      tbody.append(tr);
+    });
+  }
+
+  /***** 항목 추가 *****/
+  function addSeq(){
+    const seq=$("#seqInput",panel).value.trim();
+    if(!/^\d{7}$/.test(seq)) return alert("7자리 숫자를 입력하세요");
+    if(STATE.list.some(f=>f.seq===seq)) return alert("이미 목록에 있습니다");
+    STATE.list.push({seq,title:"",status:"대기"});
+    fetchTitle(seq);
+    redraw();
+  }
+
+  function addRange(){
+    const s=$("#startSeq",panel).value.trim();
+    const e=$("#endSeq",panel).value.trim();
+    if(!/^\d{7}$/.test(s)||!/^\d{7}$/.test(e)) return alert("숫자 7자리!");
+    let [start,end]=[+s,+e]; if(start>end)[start,end]=[end,start];
+    let added=0;
+    for(let n=start;n<=end;n++){
+      const seq=n.toString().padStart(7,"0");
+      if(STATE.list.some(f=>f.seq===seq)) continue;
+      STATE.list.push({seq,title:"",status:"대기"});
+      fetchTitle(seq);
+      added++;
+    }
+    if(!added) alert("새로 추가된 번호가 없습니다");
+    redraw();
+  }
+
+  /***** 삭제 *****/
+  function deleteSelected(){
+    const indexes=[...tbody.querySelectorAll("tr.sel")].map(tr=>+tr.dataset.idx);
+    STATE.list=STATE.list.filter((_,i)=>!indexes.includes(i));
+    redraw();
+  }
+
+  /***** 파일명 조회 *****/
+  async function fetchTitle(seq){
+    try{
+      // HEAD 메서드를 그대로 프록시하기 위해 서버에서 method 전달 필요
+      const res=await fetch(PROXY(`${EIASS_FILE_URL}?FILE_SEQ=${seq}`),{method:"HEAD"});
+      if(!res.ok) throw new Error(res.status);
+      const cd=res.headers.get("content-disposition")||"";
+      let title="파일명 없음";
+      if(cd.includes("filename=")){
+        title=decodeURIComponent(cd.split("filename=")[1].replace(/\"/g,"").replace(/\.pdf/i,""));
+      }
+      const obj=STATE.list.find(f=>f.seq===seq);
+      if(obj){ obj.title=title; redraw(); }
+    }catch(err){
+      console.error("TITLE FETCH FAIL",err);
+      const obj=STATE.list.find(f=>f.seq===seq);
+      if(obj){ obj.title="(제목 조회 실패)"; redraw(); }
+    }
+  }
+
+  /***** 다운로드 *****/
+  async function startDownload(){
+    if(!STATE.list.length) return alert("목록이 비어있습니다");
+    const targets=STATE.list.filter(f=>f.status!=="완료");
+    if(!targets.length) return alert("모든 항목이 완료되었습니다");
+
+    const globalBar=$("#globalBar",panel);
+    let done=0;
+    const updateBar=()=>global
