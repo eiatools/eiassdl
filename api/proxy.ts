@@ -3,6 +3,17 @@
 // 변경: 103 Early-Hints 제거 → 'Link' 헤더만 최종 응답에 포함하여
 //        ERR_HTTP_HEADERS_SENT 문제 해결
 // -----------------------------------------------------------------------------
+/* 0) 최상단에 임시 응답 헬퍼 */
+const ok200 = new Response("OK", {
+  status: 200,
+  headers: { "content-type": "text/plain" }
+});
+
+/* 1) 메인 핸들러 맨 앞쪽( fetch 호출 전에 ) */
+if (/sessiontime\.do$/i.test(upstreamURL.pathname)) {
+  return ok200;          // 세션 체크를 항상 통과시킴
+}
+
 import type { VercelRequest, VercelResponse } from "vercel";
 import { Agent as UndiciAgent } from "undici";
 
