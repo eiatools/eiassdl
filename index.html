@@ -5,6 +5,8 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>EIASS Viewer & Downloader</title>
+  <!-- jQuery CDN (ajaxPrefilter용) -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <!-- GSAP & FileSaver CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -44,6 +46,14 @@
   </nav>
   <main id="content"></main>
   <script>
+    /* ---------- ✨ 추가: 모든 Ajax 경로를 프록시 경유로 변환 ---------- */
+    $.ajaxPrefilter(function (opts) {
+      if (!opts.url.startsWith('/api/proxy')) {
+        const abs = opts.url.startsWith('/') ? opts.url : '/' + opts.url;
+        opts.url  = '/api/proxy?url=' + encodeURIComponent('http://www.eiass.go.kr' + abs);
+      }
+    });
+    
     const BASE_DOWNLOAD_URL = "https://www.eiass.go.kr/common/file/downloadPdfByFileSeq.do";
 
     // 메뉴 정의 (총 10개)
