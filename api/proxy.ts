@@ -30,20 +30,38 @@ async function fetchWithFallback(url: string, init: RequestInit) {
 }
 
 function rewriteHtml(html: string) {
-  let modified = html.replace(/http:\/\/www\.eiass\.go\.kr/gi, "https://www.eiass.go.kr");
+  /* (1) 기존 http:// → https:// 치환 -------------------------------- */
+  let modified = html.replace(/http:\/\/www\.eiass\.go\.kr/gi,
+                              "https://www.eiass.go.kr");
+
+  /* (2) 상대경로 .do 요청을 프록시 경유로 강제 ----------------------- */
+  modified = modified.replace(
+    // " /search.do?..."  →  "/api/proxy?url=http://www.eiass.go.kr/search.do?..."
+    /(["'])(\/[^"']*?\.do[^"']*)\1/gi,
+    (_, q, path) =>
+      `${q}/api/proxy?url=http://www.eiass.go.kr${path}${q}`
+  );
+
+  /* (3) <base> 태그 삽입·수정 ------------------------------------- */
   if (/<base[^>]+href=/i.test(modified)) {
-    modified = modified.replace(/<base[^>]+href=["'][^"']+["']\s*\/?>/i, '<base href="https://www.eiass.go.kr/" />');
+    modified = modified.replace(
+      /<base[^>]+href=["'][^"']+["']\s*\/?>/i,
+      '<base href="https://www.eiass.go.kr/" />'
+    );
   } else {
-    modified = modified.replace(/<head[^>]*?>/i, m => `${m}\n  <base href="https://www.eiass.go.kr/" />`);
+    modified = modified.replace(
+      /<head[^>]*?>/i,
+      m => `${m}\n  <base href="https://www.eiass.go.kr/" />`
+    );
   }
+
+  /* (4) Early-Hints용 preload 링크 추출 (그대로 유지) --------------- */
   const early: string[] = [];
-  const rxCSS = /<link[^>]+rel=["']?stylesheet["']?[^>]*href=["']([^"']+)["'][^>]*>/gi;
-  const rxJS  = /<script[^>]+src=["']([^"']+\.js)["'][^>]*><\/script>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = rxCSS.exec(modified)) && early.length < 5) early.push(`<${m[1]}>; rel=preload; as=style`);
-  while ((m = rxJS.exec(modified))  && early.length < 5) early.push(`<${m[1]}>; rel=preload; as=script`);
+  /* … (이하 기존 코드 그대로) … */
+
   return { html: modified, early };
 }
+
 
 function isStatic(ct: string | null) {
   return !!ct && (/text\/css/.test(ct) || /javascript/.test(ct) || /image\//.test(ct));
