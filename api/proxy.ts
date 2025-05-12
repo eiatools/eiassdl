@@ -2,10 +2,10 @@
 // ------------------------------------------------------------
 // EIASS 프록시 (Vercel Serverless / Node.js 18)
 //   • HTTPS 실패 시 HTTP(80) 폴백
-//   • Keep-Alive Dispatcher 로 원본 연결 재사용
-//   • HTML 내 혼합-콘텐츠 자동 수정(base, https 치환)
-//   • Early-Hints(103) + preload / preconnect 헤더
-//   • 정적 자원 Cache-Control + immutable
+//   • Keep‑Alive Dispatcher 로 원본 연결 재사용
+//   • HTML 내 혼합‑콘텐츠 자동 수정(base, https 치환)
+//   • Early‑Hints(103) + preload / preconnect 헤더
+//   • 정적 자원 Cache‑Control + immutable
 // ------------------------------------------------------------
 
 import type { VercelRequest, VercelResponse } from "vercel";
@@ -21,14 +21,14 @@ export const config = {
 const ALLOW_HOST = /(?:^|\.)eiass\.go\.kr$/i;
 
 /* ------------------------------------------------------------------
- * Keep-Alive Dispatcher (TLS1.0~1.2 + RSA cipher 호환)
+ * Keep‑Alive Dispatcher (TLS1.0~1.2 + RSA cipher 호환)
  * ---------------------------------------------------------------- */
 const httpsAgent = new https.Agent({
   keepAlive: true,
   maxFreeSockets: 64,
   minVersion: "TLSv1",
   maxVersion: "TLSv1.2",
-  secureOptions: tlsConst.SSL_OP_LEGACY_SERVER_CONNECT
+  secureOptions: (tlsConst as any).SSL_OP_LEGACY_SERVER_CONNECT || 0
 });
 const httpAgent = new http.Agent({ keepAlive: true, maxFreeSockets: 64 });
 
@@ -48,7 +48,7 @@ async function fetchWithFallback(url: string, init: RequestInit) {
   }
 }
 
-/* HTML 리소스 치환 / Early-Hints */
+/* HTML 리소스 치환 / Early‑Hints */
 function rewriteHtml(html: string): { html: string; earlyLinks: string[] } {
   let modified = html.replace(/http:\/\/www\.eiass\.go\.kr/gi, "https://www.eiass.go.kr");
   if (/<base[^>]+href=/i.test(modified)) {
