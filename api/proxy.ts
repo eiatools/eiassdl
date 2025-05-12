@@ -14,8 +14,9 @@ import http from "node:http";
 import { constants as tlsConst } from "node:https";
 
 export const config = {
-  runtime: "nodejs18.x",
-  regions: ["icn1"],             // 한국 POP 고정 → 지연 최소화
+  // Node.js Serverless Function (Node 18 is default)
+  regions: ["icn1"], // 한국 POP 고정 → 지연 최소화
+  maxDuration: 10     // (선택) 함수 최대 실행 시간 10초
 };
 
 /* ------------------------------------------------------------------
