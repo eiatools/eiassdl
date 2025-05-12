@@ -34,12 +34,12 @@ function rewriteHtml(html: string) {
   let modified = html.replace(/http:\/\/www\.eiass\.go\.kr/gi,
                               "https://www.eiass.go.kr");
 
-  /* (2) 상대경로 .do 요청을 프록시 경유로 강제 ----------------------- */
+  /* (2) .do 상대 URL을 모두 프록시 경유로 변환 ----------------------- */
   modified = modified.replace(
-    // " /search.do?..."  →  "/api/proxy?url=http://www.eiass.go.kr/search.do?..."
-    /(["'])(\/[^"']*?\.do[^"']*)\1/gi,
+    // ① /search.do …   ② search.do …
+    /(["'])(\/?[^"']*?\.do[^"']*)\1/gi,
     (_, q, path) =>
-      `${q}/api/proxy?url=http://www.eiass.go.kr${path}${q}`
+      `${q}/api/proxy?url=http://www.eiass.go.kr/${path.replace(/^\/?/, "")}${q}`
   );
 
   /* (3) <base> 태그 삽입·수정 ------------------------------------- */
