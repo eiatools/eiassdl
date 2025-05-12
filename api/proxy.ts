@@ -1,51 +1,33 @@
-export const config = { runtime: "edge" };
+// /api/proxy.ts        (Serverless Function)
+import https from "node:https";
 
-const ALLOW_HOST = /(?:^|\.)eiass\.go\.kr$/i;
+export const config = { runtime: "nodejs18.x" };   // Edge 대신 Node
 
-export default async function handler(req: Request) {
-  const url = new URL(req.url);
-  const raw = url.searchParams.get("url");
-  if (!raw) return new Response("Missing url", { status: 400 });
+const agent = new https.Agent({
+  keepAlive: true,
+  minVersion: "TLSv1",          // TLS1.0까지 허용
+  maxVersion: "TLSv1.2",
+  secureOptions: https.constants.SSL_OP_LEGACY_SERVER_CONNECT
+});
 
-  const upstreamURL = new URL(raw);
-  if (!ALLOW_HOST.test(upstreamURL.hostname)) {
-    return new Response("Forbidden host", { status: 403 });
+export default async function handler(req, res) {
+  try {
+    const raw = req.query.url;
+    if (!raw) return res.status(400).send("Missing url");
+
+    const upstream = await fetch(raw, {
+      method: req.method,
+      headers: req.headers,
+      body: ["POST","PUT","PATCH"].includes(req.method) ? req : null,
+      redirect: "follow",
+      agent                 // (▲) 커스텀 Agent 전달
+    });
+
+    // 스트리밍 전달
+    res.status(upstream.status);
+    upstream.body.pipe(res);
+  } catch (e) {
+    console.error(e);
+    res.status(502).json({ error: e.message });
   }
-
-  /* ───── 금지 헤더 제거 ───── */
-  const forwardHeaders = new Headers(req.headers);
-  [
-    "host",
-    "connection",
-    "content-length",
-    "accept-encoding",
-    "transfer-encoding",
-    "expect",
-    "keep-alive"
-  ].forEach(h => forwardHeaders.delete(h));
-
-  const upstream = await fetch(upstreamURL, {
-    method: req.method,
-    headers: forwardHeaders,
-    body: ["POST", "PUT", "PATCH"].includes(req.method!) ? req.body : null,
-    redirect: "follow",
-    cache: "no-store"
-  });
-
-  const resHeaders = new Headers(upstream.headers);
-  resHeaders.delete("content-security-policy");
-  resHeaders.set("access-control-allow-origin", "*");
-
-  /* HTML은 <base> 삽입 후 전달 */
-  if ((resHeaders.get("content-type") || "").includes("text/html")) {
-    let html = await upstream.text();
-    if (!/<base[^>]+href=/i.test(html)) {
-      html = html.replace(/<head[^>]*?>/i,
-        m => `${m}\n  <base href="${upstreamURL.origin}/">`);
-    }
-    return new Response(html, { status: upstream.status, headers: resHeaders });
-  }
-
-  /* 그 외 형식 스트리밍 */
-  return new Response(upstream.body, { status: upstream.status, headers: resHeaders });
 }
