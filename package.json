@@ -1,7 +1,6 @@
 {
   "name": "eiass-proxy",
   "version": "1.0.0",
-  "type": "module",
   "dependencies": {
     "undici": "^6.15.0"
   }
